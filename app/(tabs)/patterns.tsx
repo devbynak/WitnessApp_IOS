@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -14,20 +14,30 @@ const MOOD_EMOJIS: Record<string, string> = {
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+type TimeRange = '30d' | '90d' | 'all';
+
 export default function PatternsScreen() {
   const insets = useSafeAreaInsets();
   const { entries } = useWitnessStore();
+  const [timeRange, setTimeRange] = useState<TimeRange>('all');
+
+  const filteredEntries = useMemo(() => {
+    if (timeRange === 'all') return entries;
+    const days = timeRange === '30d' ? 30 : 90;
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    return entries.filter((e) => e.createdAt >= cutoff);
+  }, [entries, timeRange]);
 
   const moodCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    entries.forEach((e) => {
+    filteredEntries.forEach((e) => {
       if (e.mood) counts[e.mood] = (counts[e.mood] || 0) + 1;
     });
     return counts;
-  }, [entries]);
+  }, [filteredEntries]);
 
-  const totalEntries = entries.length;
-  const totalDuration = entries.reduce((sum, e) => sum + e.duration, 0);
+  const totalEntries = filteredEntries.length;
+  const totalDuration = filteredEntries.reduce((sum, e) => sum + e.duration, 0);
   const avgDuration = totalEntries > 0 ? Math.round(totalDuration / totalEntries) : 0;
 
   const mostCommonMood = useMemo(() => {
@@ -36,9 +46,9 @@ export default function PatternsScreen() {
     return best;
   }, [moodCounts]);
 
-  const heatmapDays = useMemo(() => buildHeatmap(entries), [entries]);
+  const heatmapDays = useMemo(() => buildHeatmap(filteredEntries), [filteredEntries]);
 
-  const dayPatterns = useMemo(() => buildDayPatterns(entries), [entries]);
+  const dayPatterns = useMemo(() => buildDayPatterns(filteredEntries), [filteredEntries]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -48,6 +58,21 @@ export default function PatternsScreen() {
         <Pressable style={styles.rewindBtn} onPress={() => router.push('/yearly-rewind')}>
           <Text style={styles.rewindBtnText}>🎞 Yearly Rewind</Text>
         </Pressable>
+      </View>
+
+      {/* Time range filter */}
+      <View style={styles.timeFilterRow}>
+        {(['30d', '90d', 'all'] as TimeRange[]).map((r) => (
+          <Pressable
+            key={r}
+            style={[styles.timeFilterPill, timeRange === r && styles.timeFilterPillActive]}
+            onPress={() => setTimeRange(r)}
+          >
+            <Text style={[styles.timeFilterText, timeRange === r && styles.timeFilterTextActive]}>
+              {r === '30d' ? 'Last 30d' : r === '90d' ? 'Last 90d' : 'All time'}
+            </Text>
+          </Pressable>
+        ))}
       </View>
 
       <ScrollView
@@ -211,6 +236,32 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full, paddingHorizontal: 16, paddingVertical: 8,
   },
   rewindBtnText: { fontFamily: FontFamily.bodyMedium, fontSize: 12, color: Colors.primary },
+  timeFilterRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    gap: 8,
+    marginBottom: 8,
+  },
+  timeFilterPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surfaceContainerLowest,
+  },
+  timeFilterPillActive: {
+    backgroundColor: Colors.primary + '22',
+    borderColor: Colors.primary,
+  },
+  timeFilterText: {
+    fontFamily: FontFamily.bodyMedium,
+    fontSize: 12,
+    color: Colors.onSurfaceVariant,
+  },
+  timeFilterTextActive: {
+    color: Colors.primary,
+  },
   content: { paddingHorizontal: 24, gap: 16 },
   statsRow: { flexDirection: 'row', gap: 10 },
   statCard: {

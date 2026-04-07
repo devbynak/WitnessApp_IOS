@@ -15,6 +15,7 @@ export interface Entry {
   createdAt: number; // timestamp
   isSynced?: boolean; // whether uploaded to Supabase
   remoteVideoKey?: string; // Supabase Storage path
+  note?: string; // user-added annotation after saving
 }
 
 export interface AppSettings {

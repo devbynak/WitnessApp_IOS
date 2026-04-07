@@ -90,7 +90,7 @@ export default function SearchScreen() {
             }
 
             return (
-              <Pressable key={entry.id} style={styles.resultCard}>
+              <Pressable key={entry.id} style={styles.resultCard} onPress={() => router.push(`/playback?entryId=${entry.id}`)}>
                 <View style={styles.resultMeta}>
                   <Text style={styles.resultDate}>{dateStr}</Text>
                   {entry.mood && (
@@ -115,7 +115,8 @@ export default function SearchScreen() {
 function highlightQuery(text: string, query: string) {
   if (!query.trim()) return <Text>{text}</Text>;
 
-  const parts = text.split(new RegExp(`(${query})`, 'gi'));
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
   return (
     <Text>
       {parts.map((part, i) => (

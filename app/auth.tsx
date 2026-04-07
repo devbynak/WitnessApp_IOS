@@ -35,6 +35,10 @@ export default function AuthScreen() {
       setError('Enter your email and a password.');
       return;
     }
+    if (mode === 'signup' && password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
     setLoading(true);
     setError(null);
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,11 @@ import {
   Animated,
   Dimensions,
   PanResponder,
+  Alert,
+  ScrollView,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -31,7 +36,7 @@ const MOOD_EMOJIS: Record<Mood, string> = {
 export default function PlaybackScreen() {
   const insets = useSafeAreaInsets();
   const { entryId } = useLocalSearchParams<{ entryId: string }>();
-  const { entries } = useWitnessStore();
+  const { entries, deleteEntry, updateEntry } = useWitnessStore();
   const entry = entries.find((e) => e.id === entryId);
 
   const videoRef = useRef<Video>(null);
@@ -39,8 +44,16 @@ export default function PlaybackScreen() {
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [showTranscript, setShowTranscript] = useState(false);
+  const [showMoodEditor, setShowMoodEditor] = useState(false);
+  const [noteText, setNoteText] = useState('');
   const controlsOpacity = useRef(new Animated.Value(1)).current;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Initialise note from entry
+  useEffect(() => {
+    if (entry?.note) setNoteText(entry.note);
+  }, [entry?.id]);
 
   // Auto-start playback
   useEffect(() => {
@@ -130,6 +143,33 @@ export default function PlaybackScreen() {
     return `${m}:${(s % 60).toString().padStart(2, '0')}`;
   }
 
+  function handleMoodChange(mood: Mood) {
+    if (entryId) updateEntry(entryId, { mood });
+    setShowMoodEditor(false);
+  }
+
+  function handleNoteSave() {
+    if (entryId) updateEntry(entryId, { note: noteText.trim() });
+  }
+
+  function handleDelete() {
+    Alert.alert(
+      'Delete this entry?',
+      'This recording will be permanently removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            if (entryId) deleteEntry(entryId);
+            router.back();
+          },
+        },
+      ]
+    );
+  }
+
   if (!entry) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -141,8 +181,14 @@ export default function PlaybackScreen() {
     );
   }
 
+  const MOODS: Mood[] = ['heavy', 'hopeful', 'angry', 'calm', 'confused', 'numb', 'grateful'];
+
   return (
-    <Pressable style={styles.container} onPress={showControls}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+    <Pressable style={StyleSheet.absoluteFill} onPress={showControls}>
       {/* Video or voice-only background */}
       {entry.isVoiceOnly ? (
         <View style={styles.voiceBg}>
@@ -171,6 +217,9 @@ export default function PlaybackScreen() {
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: controlsOpacity }]}>
           {/* Top bar */}
           <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
+            <Pressable style={styles.deleteBtn} onPress={handleDelete}>
+              <Text style={styles.deleteBtnIcon}>🗑</Text>
+            </Pressable>
             <Pressable style={styles.closeBtn} onPress={() => router.back()}>
               <Text style={styles.closeIcon}>✕</Text>
             </Pressable>
@@ -179,7 +228,7 @@ export default function PlaybackScreen() {
           {/* Bottom gradient + controls */}
           <LinearGradient
             colors={['transparent', 'rgba(18,20,22,0.95)']}
-            style={[styles.bottomGradient, { paddingBottom: insets.bottom + 24 }]}
+            style={[styles.bottomGradient, { paddingBottom: insets.bottom + 70 }]}
           >
             {/* Entry meta */}
             <View style={styles.entryMeta}>
@@ -191,11 +240,15 @@ export default function PlaybackScreen() {
                 })}
               </Text>
               {entry.mood && (
-                <View style={[styles.moodPill, { borderColor: MoodColors[entry.mood] + '66' }]}>
+                <Pressable
+                  style={[styles.moodPill, { borderColor: MoodColors[entry.mood] + '66' }]}
+                  onPress={() => setShowMoodEditor(true)}
+                >
                   <Text style={styles.moodPillText}>
                     {MOOD_EMOJIS[entry.mood]} {entry.mood}
                   </Text>
-                </View>
+                  <Text style={styles.moodEditHint}> ✎</Text>
+                </Pressable>
               )}
             </View>
 
@@ -204,6 +257,20 @@ export default function PlaybackScreen() {
               <Text style={styles.reflectionText} numberOfLines={3}>
                 {entry.aiReflection}
               </Text>
+            ) : null}
+
+            {/* Transcript toggle */}
+            {entry.transcript ? (
+              <Pressable style={styles.transcriptToggle} onPress={() => setShowTranscript((v) => !v)}>
+                <Text style={styles.transcriptToggleText}>
+                  {showTranscript ? '▲ Hide transcript' : '▼ Show transcript'}
+                </Text>
+              </Pressable>
+            ) : null}
+            {showTranscript && entry.transcript ? (
+              <ScrollView style={styles.transcriptBox} nestedScrollEnabled>
+                <Text style={styles.transcriptText}>{entry.transcript}</Text>
+              </ScrollView>
             ) : null}
 
             {/* Scrubber */}
@@ -245,6 +312,49 @@ export default function PlaybackScreen() {
         </Animated.View>
       )}
     </Pressable>
+
+      {/* Mood editor sheet */}
+      {showMoodEditor && (
+        <View style={[styles.moodSheet, { paddingBottom: insets.bottom + 16 }]}>
+          <Text style={styles.moodSheetTitle}>Change mood</Text>
+          <View style={styles.moodSheetGrid}>
+            {MOODS.map((m) => (
+              <Pressable
+                key={m}
+                style={[
+                  styles.moodSheetPill,
+                  entry.mood === m && { backgroundColor: MoodColors[m] + '33', borderColor: MoodColors[m] },
+                ]}
+                onPress={() => handleMoodChange(m)}
+              >
+                <View style={[styles.moodSheetDot, { backgroundColor: MoodColors[m] }]} />
+                <Text style={styles.moodSheetLabel}>{MOOD_EMOJIS[m]} {m}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable style={styles.moodSheetCancel} onPress={() => setShowMoodEditor(false)}>
+            <Text style={styles.moodSheetCancelText}>Cancel</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Persistent note area — sits above the tab bar, below the video */}
+      {!showMoodEditor && (
+        <View style={[styles.noteArea, { bottom: insets.bottom + 6 }]}>
+          <TextInput
+            style={styles.noteInput}
+            placeholder="Add a note..."
+            placeholderTextColor={Colors.outline}
+            value={noteText}
+            onChangeText={setNoteText}
+            onBlur={handleNoteSave}
+            multiline
+            returnKeyType="done"
+            blurOnSubmit
+          />
+        </View>
+      )}
+    </KeyboardAvoidingView>
   );
 }
 
@@ -333,9 +443,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     paddingHorizontal: 24,
     zIndex: 10,
+  },
+  deleteBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceContainer + '80',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteBtnIcon: {
+    fontSize: 18,
   },
   closeBtn: {
     width: 44,
@@ -370,6 +491,8 @@ const styles = StyleSheet.create({
     color: Colors.onSurface,
   },
   moodPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: Radius.full,
@@ -473,5 +596,102 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bodyMedium,
     fontSize: 14,
     color: Colors.primary,
+  },
+  transcriptToggle: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+  },
+  transcriptToggleText: {
+    fontFamily: FontFamily.bodyMedium,
+    fontSize: 12,
+    color: Colors.primary,
+    opacity: 0.8,
+  },
+  transcriptBox: {
+    maxHeight: 120,
+    backgroundColor: Colors.surfaceContainerLowest + 'cc',
+    borderRadius: Radius.md,
+    padding: 12,
+  },
+  transcriptText: {
+    fontFamily: FontFamily.bodyRegular,
+    fontSize: 13,
+    color: Colors.onSurfaceVariant,
+    lineHeight: 20,
+  },
+  moodEditHint: {
+    fontSize: 11,
+    color: Colors.primary,
+    opacity: 0.7,
+  },
+  // Mood editor sheet
+  moodSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    padding: 24,
+    gap: 16,
+    zIndex: 100,
+  },
+  moodSheetTitle: {
+    fontFamily: FontFamily.headline,
+    fontSize: 16,
+    color: Colors.onSurface,
+    textAlign: 'center',
+  },
+  moodSheetGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'center',
+  },
+  moodSheetPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surfaceContainerHigh,
+  },
+  moodSheetDot: { width: 8, height: 8, borderRadius: 4 },
+  moodSheetLabel: {
+    fontFamily: FontFamily.bodyMedium,
+    fontSize: 13,
+    color: Colors.onSurface,
+    textTransform: 'capitalize',
+  },
+  moodSheetCancel: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  moodSheetCancelText: {
+    fontFamily: FontFamily.bodyMedium,
+    fontSize: 14,
+    color: Colors.outline,
+  },
+  // Note area
+  noteArea: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    paddingHorizontal: 24,
+  },
+  noteInput: {
+    backgroundColor: Colors.surfaceContainer + 'BB',
+    borderRadius: Radius.lg,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontFamily: FontFamily.bodyRegular,
+    fontSize: 13,
+    color: Colors.onSurface,
+    lineHeight: 20,
+    maxHeight: 80,
   },
 });

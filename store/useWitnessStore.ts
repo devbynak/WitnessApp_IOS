@@ -71,7 +71,7 @@ export const useWitnessStore = create<WitnessStore>((set, get) => ({
     get().saveToStorage();
     
     // Remote delete if synced
-    if (entry?.isSynced) {
+    if (entry?.isSynced && entry.remoteVideoKey) {
       deleteRemoteEntry(id, entry.remoteVideoKey);
     }
   },

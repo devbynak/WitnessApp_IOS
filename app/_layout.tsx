@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus, StyleSheet, View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Manrope_700Bold, Manrope_800ExtraBold } from '@expo-google-fonts/manrope';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
@@ -40,6 +41,24 @@ export default function RootLayout() {
     checkTonightMode();
     const interval = setInterval(checkTonightMode, 60000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Deep-link from notification tap → open Record screen
+  useEffect(() => {
+    // Handle taps on notifications that arrive while app is running
+    const sub = Notifications.addNotificationResponseReceivedListener(() => {
+      router.push('/record');
+    });
+    // Handle tap when app was killed / backgrounded
+    // Only act if the notification was tapped very recently (within 30s) so we
+    // don't navigate to /record on every cold start due to a stale stored response.
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        const ageMs = Date.now() - response.notification.date * 1000;
+        if (ageMs < 30000) router.push('/record');
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   // Lock on background

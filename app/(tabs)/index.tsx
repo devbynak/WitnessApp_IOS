@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useWitnessStore } from '../../store/useWitnessStore';
 import { Colors, FontFamily, Radius, Shadows, MoodColors, Mood } from '../../constants/tokens';
 import { Entry } from '../../types';
+import { EasyAccessHalo } from '../../components/EasyAccessHalo';
 
 const QUICK_ACTIONS = [
   { icon: '📅', label: 'Archive', route: '/(tabs)/archive' },
@@ -54,8 +55,6 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { entries, isTonightMode, checkTonightMode, hasCompletedOnboarding } = useWitnessStore();
 
-  // First-time users: redirect to onboarding before tabs render.
-  // storageLoaded gate in _layout.tsx guarantees this value is correct from storage.
   if (!hasCompletedOnboarding) {
     return <Redirect href="/onboarding" />;
   }
@@ -68,7 +67,6 @@ export default function HomeScreen() {
 
   useEffect(() => {
     checkTonightMode();
-    // Ambient pulse animation
     Animated.loop(
       Animated.sequence([
         Animated.parallel([
@@ -113,26 +111,19 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        {/* Record Button */}
-        <View style={styles.recordSection}>
-          <Animated.View style={[styles.recordGlow, { opacity: glowAnim, transform: [{ scale: pulseAnim }] }]} />
-          <Pressable
-            style={styles.recordButton}
-            onPress={() => router.push('/record')}
-          >
-            <LinearGradient
-              colors={[Colors.primary, Colors.primaryContainer]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.recordGradient}
-            >
-              <Text style={styles.recordIcon}>🎥</Text>
-              <Text style={styles.recordLabel}>
-                {isTonightMode ? 'Speak' : 'Record'}
-              </Text>
-            </LinearGradient>
-          </Pressable>
-        </View>
+        {/* Empty State / Zen Beginning */}
+        {entries.length === 0 && (
+          <View style={styles.zenBeginning}>
+            <View style={styles.zenCircle}>
+              <Animated.View style={[styles.zenGlow, { opacity: glowAnim, transform: [{ scale: pulseAnim }] }]} />
+              <Text style={styles.zenIcon}>✦</Text>
+            </View>
+            <Text style={styles.zenTitle}>Your narrative is a blank space.</Text>
+            <Text style={styles.zenText}>
+              There is no pressure to be profound. Just speak what is true right now.
+            </Text>
+          </View>
+        )}
 
         {/* Tonight mode prompt */}
         {isTonightMode && (
@@ -195,6 +186,9 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Floating Easy Access Halo */}
+      <EasyAccessHalo />
     </View>
   );
 }
@@ -450,5 +444,46 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     lineHeight: 22,
     textAlign: 'center',
+  },
+  zenBeginning: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    gap: 20,
+  },
+  zenCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceContainerHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.amberAura,
+  },
+  zenGlow: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primary,
+  },
+  zenIcon: {
+    fontSize: 40,
+    color: Colors.primary,
+  },
+  zenTitle: {
+    fontFamily: FontFamily.headline,
+    fontSize: 22,
+    color: Colors.onSurface,
+    textAlign: 'center',
+  },
+  zenText: {
+    fontFamily: FontFamily.bodyRegular,
+    fontSize: 15,
+    color: Colors.onSurfaceVariant,
+    textAlign: 'center',
+    lineHeight: 24,
+    paddingHorizontal: 40,
+    opacity: 0.7,
   },
 });

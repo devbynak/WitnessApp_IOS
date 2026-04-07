@@ -1,16 +1,49 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, ScrollView, Switch, Alert,
+  View, Text, StyleSheet, Pressable, ScrollView, Switch, Alert, Share,
 } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { router } from 'expo-router';
+import { deleteAllUserData } from '../../services/entrySync';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWitnessStore } from '../../store/useWitnessStore';
 import { Colors, FontFamily, Radius } from '../../constants/tokens';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { settings, updateSettings, deleteAllEntries, entries } = useWitnessStore();
+  const { settings, updateSettings, deleteAllEntries, entries, isAuthenticated, userId } = useWitnessStore();
   const [deleteStep, setDeleteStep] = useState(0); // 0=idle, 1=confirm1, 2=confirm2
+
+  const handleExport = async () => {
+    if (entries.length === 0) {
+      Alert.alert('Nothing to export', 'Record some entries first.');
+      return;
+    }
+    const sorted = [...entries].sort((a, b) => a.createdAt - b.createdAt);
+    const lines: string[] = [
+      'WITNESS — Personal Narrative Export',
+      `Exported on ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+      `${sorted.length} entries\n`,
+      '─'.repeat(40),
+    ];
+    sorted.forEach((e) => {
+      const d = new Date(e.createdAt);
+      const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      lines.push(`\n${dateStr} at ${timeStr}`);
+      if (e.mood) lines.push(`Mood: ${e.mood}`);
+      if (e.isUnsentLetter && e.recipientName) lines.push(`Unsent letter to: ${e.recipientName}`);
+      if (e.isGriefMode) lines.push(`[Grief Sanctuary]`);
+      const mins = Math.floor(e.duration / 60);
+      const secs = e.duration % 60;
+      lines.push(`Duration: ${mins}m ${secs}s`);
+      if (e.transcript) lines.push(`\nTranscript:\n${e.transcript}`);
+      if (e.aiReflection) lines.push(`\nReflection:\n${e.aiReflection}`);
+      if (e.note) lines.push(`\nNote:\n${e.note}`);
+      lines.push('\n' + '─'.repeat(40));
+    });
+    await Share.share({ message: lines.join('\n'), title: 'Witness Archive' });
+  };
 
   const handleBiometricToggle = async (val: boolean) => {
     if (val) {
@@ -38,6 +71,10 @@ export default function SettingsScreen() {
             style: 'destructive',
             onPress: () => {
               deleteAllEntries();
+              // Also wipe remote data if signed in
+              if (isAuthenticated && userId) {
+                deleteAllUserData(userId).catch(() => {});
+              }
               setDeleteStep(0);
               Alert.alert('Done', 'Your personal narrative has been erased. It was yours, and only yours.');
             },
@@ -98,14 +135,34 @@ export default function SettingsScreen() {
           />
         </SettingsSection>
 
+        {/* Account & Backup */}
+        <SettingsSection label="Account & Backup">
+          <SettingsRow
+            icon="☁️"
+            title={isAuthenticated ? 'Signed In' : 'Sign In to Back Up'}
+            subtitle={isAuthenticated && userId ? `Syncing as ${userId.slice(0, 8)}...` : 'Entries stored locally only — sign in to enable cloud backup'}
+            right={<Text style={styles.chevron}>›</Text>}
+            onPress={() => router.push('/auth')}
+          />
+          {/* Sync status badge */}
+          <View style={styles.syncStatus}>
+            <View style={[styles.syncDot, { backgroundColor: isAuthenticated ? '#4ade80' : Colors.outline }]} />
+            <Text style={styles.syncStatusText}>
+              {isAuthenticated
+                ? `${entries.filter((e) => e.isSynced).length} of ${entries.length} entries backed up`
+                : 'Not connected — data lives on this device only'}
+            </Text>
+          </View>
+        </SettingsSection>
+
         {/* Data Management */}
         <SettingsSection label="Data Management">
           <SettingsRow
             icon="📦"
             title="Export Archive"
-            subtitle="Generate PDF transcript + Video compilation"
+            subtitle="Share a full transcript of all your entries"
             right={<Text style={styles.chevron}>›</Text>}
-            onPress={() => Alert.alert('Export', 'Export feature coming in v1.5 (Pro)')}
+            onPress={handleExport}
           />
           <View style={styles.deleteContainer}>
             <View style={styles.deleteHeader}>
@@ -252,6 +309,23 @@ const styles = StyleSheet.create({
   rowTitle: { fontFamily: FontFamily.headline, fontSize: 15, color: Colors.onSurface },
   rowSubtitle: { fontFamily: FontFamily.bodyRegular, fontSize: 12, color: Colors.onSurfaceVariant, lineHeight: 18 },
   chevron: { fontFamily: FontFamily.headline, fontSize: 20, color: Colors.onSurfaceVariant, opacity: 0.5 },
+  syncStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.lg,
+    marginTop: 4,
+  },
+  syncDot: { width: 8, height: 8, borderRadius: 4 },
+  syncStatusText: {
+    fontFamily: FontFamily.bodyRegular,
+    fontSize: 12,
+    color: Colors.onSurfaceVariant,
+    flex: 1,
+  },
   deleteContainer: {
     backgroundColor: Colors.surfaceContainerLowest,
     borderRadius: Radius.xl, padding: 20, gap: 16,

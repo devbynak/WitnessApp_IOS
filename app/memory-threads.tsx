@@ -1,9 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWitnessStore } from '../store/useWitnessStore';
 import { Colors, FontFamily, Radius, MoodColors, Mood } from '../constants/tokens';
+import { Entry } from '../types';
 
 const MOOD_EMOJIS: Record<string, string> = {
   heavy: '🌑', hopeful: '🌱', angry: '🔥', calm: '🌊',
@@ -56,7 +57,7 @@ export default function MemoryThreadsScreen() {
               <Text style={styles.threadInsight}>{thread.insight}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.entryScroll}>
                 {thread.entries.map((entry, j) => (
-                  <View key={j} style={styles.entryPill}>
+                  <Pressable key={j} style={styles.entryPill} onPress={() => router.push(`/playback?entryId=${entry.id}`)}>
                     <Text style={styles.entryPillDate}>
                       {new Date(entry.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </Text>
@@ -65,10 +66,19 @@ export default function MemoryThreadsScreen() {
                         {entry.aiReflection}
                       </Text>
                     )}
-                  </View>
+                  </Pressable>
                 ))}
               </ScrollView>
-              <Text style={styles.talkToPast}>💬 Talk to past me</Text>
+              <Pressable onPress={() => {
+                // Pick a random entry from this thread and open playback
+                const pool = thread.entries;
+                const picked = pool[Math.floor(Math.random() * pool.length)];
+                if (picked) {
+                  router.push(`/playback?entryId=${picked.id}`);
+                }
+              }}>
+                <Text style={styles.talkToPast}>💬 Talk to past me</Text>
+              </Pressable>
             </View>
           ))
         )}
@@ -87,7 +97,7 @@ export default function MemoryThreadsScreen() {
   );
 }
 
-function groupIntoThreads(entries: any[]) {
+function groupIntoThreads(entries: Entry[]) {
   const moodGroups: Record<string, any[]> = {};
   entries.forEach((e) => {
     if (e.mood) {

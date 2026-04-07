@@ -246,8 +246,18 @@ export default function RecordScreen() {
         </>
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.voiceBg]}>
+          {isGriefMode && <View style={[StyleSheet.absoluteFill, styles.griefAuraBackground]} />}
+          {isUnsentMode && <View style={[StyleSheet.absoluteFill, styles.unsentAuraBackground]} />}
           <WaveformVisualizer isRecording={isRecording} />
         </View>
+      )}
+
+      {/* Special Auras for Video Mode */}
+      {!isVoiceOnly && isGriefMode && (
+        <View style={[StyleSheet.absoluteFill, styles.griefVideoAura]} pointerEvents="none" />
+      )}
+      {!isVoiceOnly && isUnsentMode && (
+        <View style={[StyleSheet.absoluteFill, styles.unsentVideoAura]} pointerEvents="none" />
       )}
 
       {/* Header */}
@@ -602,5 +612,23 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.secondary,
     borderRadius: 2,
     minHeight: 4,
+  },
+  griefAuraBackground: {
+    backgroundColor: '#1c002e', // Deep purple
+    opacity: 0.4,
+  },
+  unsentAuraBackground: {
+    backgroundColor: '#1c1200', // Deep amber
+    opacity: 0.3,
+  },
+  griefVideoAura: {
+    borderWidth: 60,
+    borderColor: '#a855f720', // Very soft purple vignette
+    filter: 'blur(40px)' as any,
+  },
+  unsentVideoAura: {
+    borderWidth: 60,
+    borderColor: '#fabd0015', // Very soft amber vignette
+    filter: 'blur(40px)' as any,
   },
 });

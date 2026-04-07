@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,9 @@ import {
   Pressable,
   ScrollView,
   TextInput,
+  Alert,
 } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWitnessStore } from '../../store/useWitnessStore';
@@ -49,6 +51,11 @@ export default function ArchiveScreen() {
   function nextMonth() {
     setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
   }
+  function goToToday() {
+    const now = new Date();
+    setCurrentMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+  }
+  const isCurrentMonth = currentMonth.getFullYear() === new Date().getFullYear() && currentMonth.getMonth() === new Date().getMonth();
 
   const monthLabel = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
 
@@ -88,6 +95,11 @@ export default function ArchiveScreen() {
           <View style={styles.calendarHeader}>
             <Text style={styles.calendarMonth}>{monthLabel}</Text>
             <View style={styles.calendarNav}>
+              {!isCurrentMonth && (
+                <Pressable style={styles.todayBtn} onPress={goToToday}>
+                  <Text style={styles.todayBtnText}>Today</Text>
+                </Pressable>
+              )}
               <Pressable style={styles.navBtn} onPress={prevMonth}>
                 <Text style={styles.navBtnText}>‹</Text>
               </Pressable>
@@ -184,37 +196,60 @@ export default function ArchiveScreen() {
 }
 
 function EntryCard({ entry }: { entry: Entry }) {
+  const { deleteEntry } = useWitnessStore();
+  const swipeRef = useRef<Swipeable>(null);
   const date = new Date(entry.createdAt);
   const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
+  function handleDelete() {
+    swipeRef.current?.close();
+    Alert.alert(
+      'Delete this entry?',
+      'This recording will be permanently removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteEntry(entry.id) },
+      ]
+    );
+  }
+
+  const renderRightActions = () => (
+    <Pressable style={styles.swipeDelete} onPress={handleDelete}>
+      <Text style={styles.swipeDeleteIcon}>🗑</Text>
+      <Text style={styles.swipeDeleteText}>Delete</Text>
+    </Pressable>
+  );
+
   return (
-    <Pressable
-      style={styles.entryCard}
-      onPress={() => router.push({ pathname: '/playback', params: { entryId: entry.id } })}
-    >
-      <View style={styles.entryThumb}>
-        <Text style={styles.entryThumbIcon}>
-          {entry.isUnsentLetter ? '✉️' : entry.isGriefMode ? '🕯️' : entry.isVoiceOnly ? '🎙️' : '🎬'}
-        </Text>
-      </View>
-      <View style={styles.entryContent}>
-        <View style={styles.entryMeta}>
-          <Text style={styles.entryTime}>
-            {entry.isUnsentLetter ? `To ${entry.recipientName || 'Unsent'}` : `${dateStr} · ${timeStr}`}
+    <Swipeable ref={swipeRef} renderRightActions={renderRightActions} rightThreshold={60}>
+      <Pressable
+        style={styles.entryCard}
+        onPress={() => router.push({ pathname: '/playback', params: { entryId: entry.id } })}
+      >
+        <View style={styles.entryThumb}>
+          <Text style={styles.entryThumbIcon}>
+            {entry.isUnsentLetter ? '✉️' : entry.isGriefMode ? '🕯️' : entry.isVoiceOnly ? '🎙️' : '🎬'}
           </Text>
-          {entry.mood && (
-            <View style={[styles.entryMoodDot, { backgroundColor: MoodColors[entry.mood as Mood] }]} />
+        </View>
+        <View style={styles.entryContent}>
+          <View style={styles.entryMeta}>
+            <Text style={styles.entryTime}>
+              {entry.isUnsentLetter ? `To ${entry.recipientName || 'Unsent'}` : `${dateStr} · ${timeStr}`}
+            </Text>
+            {entry.mood && (
+              <View style={[styles.entryMoodDot, { backgroundColor: MoodColors[entry.mood as Mood] }]} />
+            )}
+          </View>
+          <Text style={styles.entryDuration}>
+            {entry.isGriefMode && '🌙 Grief Sanctuary · '}{formatDuration(entry.duration)}
+          </Text>
+          {entry.aiReflection && (
+            <Text style={styles.entryReflection} numberOfLines={2}>{entry.aiReflection}</Text>
           )}
         </View>
-        <Text style={styles.entryDuration}>
-          {entry.isGriefMode && '🌙 Grief Sanctuary · '}{formatDuration(entry.duration)}
-        </Text>
-        {entry.aiReflection && (
-          <Text style={styles.entryReflection} numberOfLines={2}>{entry.aiReflection}</Text>
-        )}
-      </View>
-    </Pressable>
+      </Pressable>
+    </Swipeable>
   );
 }
 
@@ -236,8 +271,8 @@ function buildCalendarDays(month: Date, entries: Entry[]) {
   // Create a map for faster lookup (O(N) instead of O(N*M))
   const entryMap = entries.reduce((acc, e) => {
     const ed = new Date(e.createdAt);
-    const key = `${ed.getFullYear()}-${ed.getMonth()}-${ed.getDate()}`;
-    if (!acc[key]) acc[key] = e; // prioritize first entry of the day for the dot
+    const key = `${ed.getFullYear()}-${ed.getMonth()}-${ed.getDate()}`; // matches lookup key below
+    if (!acc[key]) acc[key] = e;
     return acc;
   }, {} as Record<string, Entry>);
 
@@ -297,6 +332,12 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   navBtnText: { fontFamily: FontFamily.headline, fontSize: 20, color: Colors.onSurface },
+  todayBtn: {
+    height: 36, paddingHorizontal: 12, borderRadius: Radius.full,
+    backgroundColor: Colors.primary + '22', borderWidth: 1, borderColor: Colors.primary + '55',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  todayBtnText: { fontFamily: FontFamily.bodyMedium, fontSize: 12, color: Colors.primary },
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   calendarDayLabel: {
     width: '14.28%', textAlign: 'center',
@@ -363,6 +404,23 @@ const styles = StyleSheet.create({
   emptyText: {
     fontFamily: FontFamily.bodyRegular, fontSize: 15,
     color: Colors.onSurfaceVariant, textAlign: 'center', lineHeight: 24,
+  },
+  swipeDelete: {
+    backgroundColor: '#e53e3e',
+    borderRadius: Radius.xl,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginLeft: 8,
+    gap: 4,
+  },
+  swipeDeleteIcon: { fontSize: 20 },
+  swipeDeleteText: {
+    fontFamily: FontFamily.bodyMedium,
+    fontSize: 11,
+    color: '#fff',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   entryCard: {
     backgroundColor: Colors.surfaceContainer,

@@ -7,6 +7,7 @@ import {
   Animated,
   ScrollView,
   Linking,
+  Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -143,9 +144,21 @@ export default function ReflectScreen() {
   }
 
   function handleDelete() {
-    // No confirmation dialog per spec — immediate delete
-    if (entryId) deleteEntry(entryId);
-    router.replace('/(tabs)');
+    Alert.alert(
+      'Delete this entry?',
+      'This recording will be gone forever.',
+      [
+        { text: 'Keep it', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            if (entryId) deleteEntry(entryId);
+            router.replace('/(tabs)');
+          },
+        },
+      ]
+    );
   }
 
   const spin = spinAnim.interpolate({
@@ -154,6 +167,20 @@ export default function ReflectScreen() {
   });
 
   const isProcessing = loadingPhase !== 'done';
+
+  // Entry not found — navigate away to prevent user being stuck
+  if (!entry && !isProcessing) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ fontFamily: 'Inter_400Regular', color: Colors.onSurfaceVariant, marginBottom: 16 }}>
+          Something went wrong.
+        </Text>
+        <Pressable onPress={() => router.replace('/(tabs)')}>
+          <Text style={{ fontFamily: 'Inter_500Medium', color: Colors.primary }}>Go home</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

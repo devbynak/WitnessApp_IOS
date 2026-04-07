@@ -1,16 +1,49 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Share } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWitnessStore } from '../store/useWitnessStore';
-import { Colors, FontFamily, Radius, Shadows } from '../constants/tokens';
+import { Colors, FontFamily, Radius } from '../constants/tokens';
 
 export default function YearlyRewindScreen() {
   const insets = useSafeAreaInsets();
   const { entries } = useWitnessStore();
   const year = new Date().getFullYear();
-  const yearEntries = entries.filter((e) => new Date(e.createdAt).getFullYear() === year);
+  const yearEntries = useMemo(
+    () => entries.filter((e) => new Date(e.createdAt).getFullYear() === year),
+    [entries, year]
+  );
+
+  const moodCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    yearEntries.forEach((e) => { if (e.mood) counts[e.mood] = (counts[e.mood] || 0) + 1; });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }, [yearEntries]);
+
+  const totalHours = formatHours(yearEntries.reduce((s, e) => s + e.duration, 0));
+  const longestStreak = useMemo(() => calcStreak(yearEntries), [yearEntries]);
+  const mostMood = getMostMood(yearEntries);
+  const moodEmojis: Record<string, string> = {
+    heavy: '🌑', hopeful: '🌱', angry: '🔥', calm: '🌊',
+    confused: '🌀', numb: '❄️', grateful: '✨',
+  };
+
+  const handleShare = async () => {
+    const lines = [
+      `✦ My ${year} in Feeling — via Witness`,
+      '',
+      `${yearEntries.length} honest entries`,
+      `${totalHours} of voice`,
+      `${longestStreak}-day longest streak`,
+      mostMood !== '—' ? `Most felt: ${moodEmojis[mostMood] || ''} ${mostMood}` : '',
+      '',
+      moodCounts.slice(0, 3).map(([m, c]) => `${moodEmojis[m] || m} ${m}: ${c}×`).join('  '),
+      '',
+      '#Witness #VideoJournal',
+    ].filter(Boolean).join('\n');
+    await Share.share({ message: lines, title: `My ${year} in Feeling` });
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -41,29 +74,47 @@ export default function YearlyRewindScreen() {
             <Text style={styles.statLabel}>Entries</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statVal}>{formatHours(yearEntries.reduce((s, e) => s + e.duration, 0))}</Text>
+            <Text style={styles.statVal}>{totalHours}</Text>
             <Text style={styles.statLabel}>Hours spoken</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statVal}>{getMostMood(yearEntries)}</Text>
-            <Text style={styles.statLabel}>Most felt</Text>
+            <Text style={styles.statVal}>{longestStreak}d</Text>
+            <Text style={styles.statLabel}>Best streak</Text>
           </View>
         </View>
 
-        {/* Generate button (Pro placeholder) */}
-        <View style={styles.proCard}>
-          <Text style={styles.proIcon}>🎞</Text>
-          <Text style={styles.proTitle}>Generate Your Rewind</Text>
-          <Text style={styles.proText}>
-            AI auto-compiles your peak emotional moments into a private video reel. Just for you.
+        {/* Mood breakdown */}
+        {moodCounts.length > 0 && (
+          <View style={styles.moodBreakdown}>
+            <Text style={styles.moodBreakdownTitle}>Your {year} in moods</Text>
+            {moodCounts.map(([mood, count]) => (
+              <View key={mood} style={styles.moodRow}>
+                <Text style={styles.moodRowLabel}>{moodEmojis[mood] || ''} {mood}</Text>
+                <View style={styles.moodRowTrack}>
+                  <View style={[styles.moodRowFill, {
+                    width: `${(count / (moodCounts[0]?.[1] || 1)) * 100}%`,
+                    backgroundColor: Colors.primary,
+                  }]} />
+                </View>
+                <Text style={styles.moodRowCount}>{count}×</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Share Rewind card */}
+        <View style={styles.shareCard}>
+          <Text style={styles.shareCardTitle}>Share Your Year</Text>
+          <Text style={styles.shareCardText}>
+            A private snapshot of your emotional year — share it or keep it for yourself.
           </Text>
-          <Pressable style={styles.proBtn}>
+          <Pressable style={styles.shareBtn} onPress={handleShare}>
             <LinearGradient
-              colors={[Colors.primary, Colors.primaryContainer]}
+              colors={[Colors.primary, '#a07800']}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={styles.proBtnGradient}
+              style={styles.shareBtnGradient}
             >
-              <Text style={styles.proBtnText}>Upgrade to Pro — ₹299/mo</Text>
+              <Text style={styles.shareBtnText}>✦ Share My {year} in Feeling</Text>
             </LinearGradient>
           </Pressable>
         </View>
@@ -71,19 +122,20 @@ export default function YearlyRewindScreen() {
         {/* Timeline preview */}
         {yearEntries.length > 0 && (
           <View style={styles.timeline}>
-            <Text style={styles.timelineTitle}>Your {year} so far</Text>
-            {yearEntries.slice(0, 5).map((e, i) => (
-              <View key={i} style={styles.timelineItem}>
+            <Text style={styles.timelineTitle}>Your {year} in moments</Text>
+            {yearEntries.slice(0, 10).map((e, i) => (
+              <Pressable key={i} style={styles.timelineItem} onPress={() => router.push(`/playback?entryId=${e.id}`)}>
                 <View style={styles.timelineDot} />
                 <View style={styles.timelineText}>
                   <Text style={styles.timelineDate}>
                     {new Date(e.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+                    {e.mood ? `  ${moodEmojis[e.mood] || ''}` : ''}
                   </Text>
                   {e.aiReflection && (
                     <Text style={styles.timelineReflection} numberOfLines={2}>{e.aiReflection}</Text>
                   )}
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
         )}
@@ -102,6 +154,25 @@ function getMostMood(entries: any[]) {
   entries.forEach((e) => { if (e.mood) counts[e.mood] = (counts[e.mood] || 0) + 1; });
   const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
   return top ? top[0] : '—';
+}
+
+function calcStreak(entries: any[]): number {
+  if (entries.length === 0) return 0;
+  const days = [...new Set(entries.map((e) => {
+    const d = new Date(e.createdAt);
+    // Zero-pad month and day so lexicographic sort == chronological sort
+    const m = String(d.getMonth() + 1).padStart(2, '0'); // 1-12, not 0-11
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${m}-${day}`;
+  }))].sort();
+  let best = 1, cur = 1;
+  for (let i = 1; i < days.length; i++) {
+    const prev = new Date(days[i - 1]);
+    const curr = new Date(days[i]);
+    const diff = (curr.getTime() - prev.getTime()) / 86400000;
+    if (diff === 1) { cur++; best = Math.max(best, cur); } else { cur = 1; }
+  }
+  return best;
 }
 
 const styles = StyleSheet.create({
@@ -137,20 +208,6 @@ const styles = StyleSheet.create({
   },
   statVal: { fontFamily: FontFamily.headline, fontSize: 24, color: Colors.onSurface },
   statLabel: { fontFamily: FontFamily.bodyRegular, fontSize: 11, color: Colors.onSurfaceVariant },
-  proCard: {
-    marginHorizontal: 24,
-    backgroundColor: Colors.primaryContainer + '33',
-    borderRadius: Radius.xl, padding: 24, gap: 12, alignItems: 'center',
-  },
-  proIcon: { fontSize: 40 },
-  proTitle: { fontFamily: FontFamily.headline, fontSize: 22, color: Colors.onSurface },
-  proText: {
-    fontFamily: FontFamily.bodyRegular, fontSize: 14,
-    color: Colors.onSurfaceVariant, textAlign: 'center', lineHeight: 22,
-  },
-  proBtn: { width: '100%', borderRadius: Radius.full, overflow: 'hidden', ...Shadows.amberAura },
-  proBtnGradient: { padding: 18, alignItems: 'center' },
-  proBtnText: { fontFamily: FontFamily.headline, fontSize: 14, color: Colors.onPrimary, letterSpacing: 0.5 },
   timeline: { paddingHorizontal: 24, gap: 16 },
   timelineTitle: { fontFamily: FontFamily.headline, fontSize: 18, color: Colors.onSurface },
   timelineItem: { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
@@ -164,4 +221,39 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bodyRegular, fontSize: 13,
     color: Colors.onSurfaceVariant, lineHeight: 20, fontStyle: 'italic',
   },
+  moodBreakdown: {
+    marginHorizontal: 24,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.xl, padding: 20, gap: 12,
+  },
+  moodBreakdownTitle: {
+    fontFamily: FontFamily.headline, fontSize: 16, color: Colors.onSurface,
+  },
+  moodRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  moodRowLabel: {
+    fontFamily: FontFamily.bodyMedium, fontSize: 13, color: Colors.onSurface,
+    width: 90, textTransform: 'capitalize',
+  },
+  moodRowTrack: {
+    flex: 1, height: 6, backgroundColor: Colors.outlineVariant + '40',
+    borderRadius: 3, overflow: 'hidden',
+  },
+  moodRowFill: { height: '100%', borderRadius: 3 },
+  moodRowCount: {
+    fontFamily: FontFamily.bodyRegular, fontSize: 11, color: Colors.outline,
+    width: 24, textAlign: 'right',
+  },
+  shareCard: {
+    marginHorizontal: 24,
+    backgroundColor: Colors.primaryContainer + '22',
+    borderRadius: Radius.xl, padding: 24, gap: 14, alignItems: 'center',
+  },
+  shareCardTitle: { fontFamily: FontFamily.headline, fontSize: 20, color: Colors.onSurface },
+  shareCardText: {
+    fontFamily: FontFamily.bodyRegular, fontSize: 14,
+    color: Colors.onSurfaceVariant, textAlign: 'center', lineHeight: 22,
+  },
+  shareBtn: { width: '100%', borderRadius: Radius.full, overflow: 'hidden' },
+  shareBtnGradient: { padding: 18, alignItems: 'center' },
+  shareBtnText: { fontFamily: FontFamily.headline, fontSize: 14, color: '#000', letterSpacing: 0.5 },
 });

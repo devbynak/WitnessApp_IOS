@@ -20,7 +20,7 @@ export default function GriefModeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Pressable style={styles.closeBtn} onPress={() => router.back()}>
+      <Pressable style={[styles.closeBtn, { top: insets.top + 16 }]} onPress={() => router.back()}>
         <Text style={styles.closeIcon}>✕</Text>
       </Pressable>
 
@@ -89,7 +89,7 @@ export default function GriefModeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.surfaceContainerLowest },
   closeBtn: {
-    position: 'absolute', top: 60, right: 24, zIndex: 10,
+    position: 'absolute', right: 24, zIndex: 10,
     width: 40, height: 40, borderRadius: Radius.full,
     backgroundColor: Colors.surfaceContainerLow,
     alignItems: 'center', justifyContent: 'center',
