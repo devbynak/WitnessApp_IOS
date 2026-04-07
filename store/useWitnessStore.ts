@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { Entry, AppSettings } from '../types';
 import { supabase } from '../services/supabase';
 import { uploadEntry, deleteRemoteEntry, syncAllEntries } from '../services/entrySync';
@@ -92,13 +93,22 @@ export const useWitnessStore = create<WitnessStore>((set, get) => ({
     const newSettings = { ...get().settings, ...updates };
     set({ settings: newSettings });
     AsyncStorage.setItem('witness_settings', JSON.stringify(newSettings));
+    
+    // Also save biometric preference to SecureStore for pre-unlock access
+    if (updates.biometricEnabled !== undefined) {
+      SecureStore.setItemAsync('witness_biometric_enabled', updates.biometricEnabled ? 'true' : 'false');
+    }
   },
 
-  setUnlocked: (value) => set({ isUnlocked: value }),
+  setUnlocked: (value) => {
+    set({ isUnlocked: value });
+    // Note: We don't persist 'true' to SecureStore for security, 
+    // but we can persist the fact that a lock exists.
+  },
 
   setOnboardingComplete: () => {
     set({ hasCompletedOnboarding: true });
-    AsyncStorage.setItem('witness_onboarding_complete', 'true');
+    SecureStore.setItemAsync('witness_onboarding_complete', 'true');
   },
 
   setUserId: (id) => set({ userId: id }),
@@ -125,7 +135,7 @@ export const useWitnessStore = create<WitnessStore>((set, get) => ({
       const [entriesJson, settingsJson, onboardingComplete] = await Promise.all([
         AsyncStorage.getItem('witness_entries'),
         AsyncStorage.getItem('witness_settings'),
-        AsyncStorage.getItem('witness_onboarding_complete'),
+        SecureStore.getItemAsync('witness_onboarding_complete'),
       ]);
       if (entriesJson) set({ entries: JSON.parse(entriesJson) });
       if (settingsJson) set({ settings: { ...DEFAULT_SETTINGS, ...JSON.parse(settingsJson) } });

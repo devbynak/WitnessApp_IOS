@@ -247,6 +247,13 @@ function EntryCard({ entry }: { entry: Entry }) {
           {entry.aiReflection && (
             <Text style={styles.entryReflection} numberOfLines={2}>{entry.aiReflection}</Text>
           )}
+          <View style={styles.entryFooter}>
+            <View style={styles.privacyBadge}>
+              <Text style={styles.privacyIcon}>🛡️</Text>
+              <Text style={styles.privacyText}>Private</Text>
+            </View>
+            {entry.isSynced && <Text style={styles.syncedText}>Synced</Text>}
+          </View>
         </View>
       </Pressable>
     </Swipeable>
@@ -444,5 +451,38 @@ const styles = StyleSheet.create({
   entryReflection: {
     fontFamily: FontFamily.bodyRegular, fontSize: 13,
     color: Colors.onSurfaceVariant, lineHeight: 20, opacity: 0.8,
+  },
+  entryFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  privacyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.surfaceContainerHighest + '44',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
+  },
+  privacyIcon: {
+    fontSize: 10,
+    opacity: 0.8,
+  },
+  privacyText: {
+    fontFamily: FontFamily.bodyMedium,
+    fontSize: 9,
+    color: Colors.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  syncedText: {
+    fontFamily: FontFamily.bodyRegular,
+    fontSize: 9,
+    color: Colors.tertiary,
+    opacity: 0.6,
+    textTransform: 'uppercase',
   },
 });

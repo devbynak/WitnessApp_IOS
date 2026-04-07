@@ -174,6 +174,12 @@ export default function HomeScreen() {
                 {lastEntry.aiReflection}
               </Text>
             )}
+            <View style={styles.recentFooter}>
+              <View style={styles.privacyBadge}>
+                <Text style={styles.privacyIcon}>🛡️</Text>
+                <Text style={styles.privacyText}>Private</Text>
+              </View>
+            </View>
           </View>
         )}
 
@@ -485,5 +491,29 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     paddingHorizontal: 40,
     opacity: 0.7,
+  },
+  recentFooter: {
+    marginTop: 10,
+    flexDirection: 'row',
+  },
+  privacyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.surfaceContainerHighest + '44',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
+  },
+  privacyIcon: {
+    fontSize: 10,
+    opacity: 0.8,
+  },
+  privacyText: {
+    fontFamily: FontFamily.bodyMedium,
+    fontSize: 9,
+    color: Colors.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 });
