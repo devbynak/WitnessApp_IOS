@@ -42,6 +42,8 @@
     "plugins": [
       "expo-router",
       "expo-font",
+      "expo-secure-store",
+      "expo-blur",
       [
         "expo-camera",
         {

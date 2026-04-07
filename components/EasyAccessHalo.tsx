@@ -8,6 +8,7 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -45,7 +46,12 @@ export function EasyAccessHalo() {
     setTimeout(() => {
        if (route.includes('?')) {
         const [path, query] = route.split('?');
-        const params = Object.fromEntries(new URLSearchParams(query));
+        // Manual query parsing to avoid polyfill crashes
+        const params: Record<string, string> = {};
+        query.split('&').forEach(part => {
+          const [key, val] = part.split('=');
+          if (key) params[key] = decodeURIComponent(val || '');
+        });
         router.push({ pathname: path as any, params });
       } else {
         router.push(route as any);
@@ -152,9 +158,6 @@ export function EasyAccessHalo() {
     </View>
   );
 }
-
-// I need LinearGradient from expo-linear-gradient
-import { LinearGradient } from 'expo-linear-gradient';
 
 const styles = StyleSheet.create({
   container: {

@@ -132,36 +132,51 @@ export const useWitnessStore = create<WitnessStore>((set, get) => ({
 
   loadFromStorage: async () => {
     try {
+      // Use helper to safely get SecureStore values without hanging
+      const safeSecureGet = async (key: string) => {
+        try {
+          return await SecureStore.getItemAsync(key);
+        } catch (e) {
+          console.warn(`SecureStore failed for key ${key}:`, e);
+          return null;
+        }
+      };
+
       const [entriesJson, settingsJson, onboardingComplete] = await Promise.all([
-        AsyncStorage.getItem('witness_entries'),
-        AsyncStorage.getItem('witness_settings'),
-        SecureStore.getItemAsync('witness_onboarding_complete'),
+        AsyncStorage.getItem('witness_entries').catch(() => null),
+        AsyncStorage.getItem('witness_settings').catch(() => null),
+        safeSecureGet('witness_onboarding_complete'),
       ]);
+
       if (entriesJson) set({ entries: JSON.parse(entriesJson) });
       if (settingsJson) set({ settings: { ...DEFAULT_SETTINGS, ...JSON.parse(settingsJson) } });
       if (onboardingComplete === 'true') set({ hasCompletedOnboarding: true });
 
       // Initialize Supabase Auth listener
       if (supabase.auth) {
-        const { data: { session } } = await supabase.auth.getSession();
-        set({ 
-          userId: session?.user?.id ?? null,
-          isAuthenticated: !!session
-        });
-
-        supabase.auth.onAuthStateChange((_event, session) => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
           set({ 
             userId: session?.user?.id ?? null,
             isAuthenticated: !!session
           });
-          if (session?.user?.id) {
-            get().syncEntries();
-          }
-        });
+
+          supabase.auth.onAuthStateChange((_event, session) => {
+            set({ 
+              userId: session?.user?.id ?? null,
+              isAuthenticated: !!session
+            });
+            if (session?.user?.id) {
+              get().syncEntries();
+            }
+          });
+        } catch (supabaseError) {
+          console.error('Supabase init failed:', supabaseError);
+        }
       }
 
     } catch (e) {
-      console.error('Failed to load from storage:', e);
+      console.error('Critical failure in loadFromStorage:', e);
     }
   },
 
